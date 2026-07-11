@@ -14,11 +14,21 @@ public enum TTSAudioPlaybackError: LocalizedError, Sendable {
 
 @MainActor
 public protocol TTSAudioPlayerDelegate: AnyObject {
-    func ttsAudioPlayerDidFinishPlaying(_ player: TTSAudioPlayer)
+    func ttsAudioPlayerDidFinishPlaying()
 }
 
 @MainActor
-public final class TTSAudioPlayer: NSObject, AVAudioPlayerDelegate {
+public protocol TTSAudioPlaying: AnyObject {
+    var delegate: (any TTSAudioPlayerDelegate)? { get set }
+    var isPlaying: Bool { get }
+    func play(request: TTSAudioPlaybackRequest) throws
+    func pause()
+    func resume() throws
+    func stop()
+}
+
+@MainActor
+public final class TTSAudioPlayer: NSObject, TTSAudioPlaying, AVAudioPlayerDelegate {
     public weak var delegate: TTSAudioPlayerDelegate?
 
     private var player: AVAudioPlayer?
@@ -31,15 +41,11 @@ public final class TTSAudioPlayer: NSObject, AVAudioPlayerDelegate {
         super.init()
     }
 
-    public func play(result: TTSGenerationResult) throws {
-        try play(url: result.fileURL)
-    }
-
-    public func play(url: URL) throws {
+    public func play(request: TTSAudioPlaybackRequest) throws {
         stop()
         try configureAudioSession()
 
-        let player = try AVAudioPlayer(contentsOf: url)
+        let player = try AVAudioPlayer(contentsOf: request.fileURL)
         player.delegate = self
         player.prepareToPlay()
 
@@ -75,7 +81,7 @@ public final class TTSAudioPlayer: NSObject, AVAudioPlayerDelegate {
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         self.player = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
-        delegate?.ttsAudioPlayerDidFinishPlaying(self)
+        delegate?.ttsAudioPlayerDidFinishPlaying()
     }
 
     private func configureAudioSession() throws {

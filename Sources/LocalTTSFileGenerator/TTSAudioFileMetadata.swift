@@ -26,8 +26,14 @@ public struct TTSAudioFileMetadata: Sendable, Equatable {
     }
 }
 
-public enum TTSAudioMetadataReader {
-    public static func metadata(for fileURL: URL) throws -> TTSAudioFileMetadata {
+public protocol TTSAudioMetadataReading: Sendable {
+    func metadata(for fileURL: URL) throws -> TTSAudioFileMetadata
+}
+
+public struct TTSAudioMetadataReader: TTSAudioMetadataReading {
+    public init() {}
+
+    public func metadata(for fileURL: URL) throws -> TTSAudioFileMetadata {
         let audioFile = try AVAudioFile(forReading: fileURL)
         let sampleRate = audioFile.fileFormat.sampleRate
         let duration = sampleRate > 0 ? TimeInterval(audioFile.length) / sampleRate : 0

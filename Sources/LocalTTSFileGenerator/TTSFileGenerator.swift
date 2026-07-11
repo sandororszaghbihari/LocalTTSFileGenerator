@@ -3,136 +3,45 @@ import Foundation
 
 public nonisolated final class TTSFileGenerator: TTSFileGenerating {
     private let fileManager: FileManager
-    private let voiceSelector: TTSVoiceSelector
+    private let voiceSelector: any TTSVoiceSelecting
+    private let fileNameProvider: any TTSFileNameProviding
+    private let metadataReader: any TTSAudioMetadataReading
 
     public init(
         fileManager: FileManager = .default,
-        voiceSelector: TTSVoiceSelector = TTSVoiceSelector()
+        voiceSelector: any TTSVoiceSelecting = TTSVoiceSelector(),
+        fileNameProvider: any TTSFileNameProviding = TTSCAFFileNameProvider(),
+        metadataReader: any TTSAudioMetadataReading = TTSAudioMetadataReader()
     ) {
         self.fileManager = fileManager
         self.voiceSelector = voiceSelector
+        self.fileNameProvider = fileNameProvider
+        self.metadataReader = metadataReader
     }
 
-    public func generate(
-        text: String,
-        languageCode: String,
-        outputDirectory: URL
-    ) async throws -> TTSGenerationResult {
-        try await generate(
-            text: text,
-            languageCode: languageCode,
-            outputDirectory: outputDirectory,
-            options: TTSGenerationOptions(),
-            eventHandler: nil
-        )
-    }
-
-    public func generate(
-        text: String,
-        languageCode: String,
-        outputDirectory: URL,
-        options: TTSGenerationOptions,
-        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)? = nil
-    ) async throws -> TTSGenerationResult {
+    public func generate(request: TTSGenerationRequest) async throws -> TTSGenerationResult {
         let createdAt = Date()
-        let fileName = makeUniqueCAFFileName(
-            languageCode: languageCode,
-            createdAt: createdAt,
-            id: UUID(),
-            options: options
-        )
-        let destinationURL = outputDirectory.appendingPathComponent(fileName, isDirectory: false)
-
-        return try await generate(
-            text: text,
-            languageCode: languageCode,
-            destinationURL: destinationURL,
-            options: options,
-            eventHandler: eventHandler,
-            createdAt: createdAt
-        )
-    }
-
-    public func generate(
-        text: String,
-        languageCode: String,
-        destinationURL: URL
-    ) async throws -> TTSGenerationResult {
-        try await generate(
-            text: text,
-            languageCode: languageCode,
-            destinationURL: destinationURL,
-            options: TTSGenerationOptions(),
-            eventHandler: nil
-        )
-    }
-
-    public func generate(
-        text: String,
-        languageCode: String,
-        destinationURL: URL,
-        options: TTSGenerationOptions,
-        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)? = nil
-    ) async throws -> TTSGenerationResult {
-        try await generate(
-            text: text,
-            languageCode: languageCode,
-            destinationURL: destinationURL,
-            options: options,
-            eventHandler: eventHandler,
-            createdAt: Date()
-        )
-    }
-
-    public func startGeneration(
-        text: String,
-        languageCode: String,
-        outputDirectory: URL,
-        options: TTSGenerationOptions = TTSGenerationOptions(),
-        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)? = nil
-    ) -> TTSGenerationSession {
-        TTSGenerationSession(
-            task: Task {
-                try await generate(
-                    text: text,
-                    languageCode: languageCode,
-                    outputDirectory: outputDirectory,
-                    options: options,
-                    eventHandler: eventHandler
-                )
-            }
-        )
-    }
-
-    public func availableVoices(languageCode: String) -> [TTSVoiceInfo] {
-        voiceSelector.availableVoices(languageCode: languageCode)
-    }
-
-    public func isLanguageAvailable(_ languageCode: String) -> Bool {
-        voiceSelector.isLanguageAvailable(languageCode)
-    }
-
-    private func generate(
-        text: String,
-        languageCode: String,
-        destinationURL: URL,
-        options: TTSGenerationOptions,
-        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)?,
-        createdAt: Date
-    ) async throws -> TTSGenerationResult {
-        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedText = request.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
             throw TTSGenerationError.emptyText
         }
 
+        let eventHandler = request.eventHandler
         eventHandler?(.started)
 
-        guard let voice = voiceSelector.selectVoice(languageCode: languageCode) else {
-            throw TTSGenerationError.voiceUnavailable(languageCode: languageCode)
+        guard let voice = voiceSelector.selectVoice(languageCode: request.languageCode) else {
+            throw TTSGenerationError.voiceUnavailable(languageCode: request.languageCode)
         }
 
         let voiceInfo = TTSVoiceInfo(voice: voice)
         eventHandler?(.voiceSelected(voiceInfo))
+
+        let fileName = request.fileName ?? fileNameProvider.fileName(
+            languageCode: request.languageCode,
+            createdAt: createdAt,
+            options: request.options
+        )
+        let destinationURL = request.outputDirectory.appendingPathComponent(fileName, isDirectory: false)
 
         try fileManager.createDirectory(
             at: destinationURL.deletingLastPathComponent(),
@@ -144,17 +53,17 @@ public nonisolated final class TTSFileGenerator: TTSFileGenerating {
                 text: trimmedText,
                 voice: voice,
                 destinationURL: destinationURL,
-                options: options,
+                options: request.options,
                 eventHandler: eventHandler
             ).start()
 
             let fileSize = try fileSize(at: destinationURL)
-            let metadata = try? TTSAudioMetadataReader.metadata(for: destinationURL)
+            let metadata = try? metadataReader.metadata(for: destinationURL)
 
             let result = TTSGenerationResult(
                 fileURL: destinationURL,
                 fileName: destinationURL.lastPathComponent,
-                languageCode: languageCode,
+                languageCode: request.languageCode,
                 fileSize: fileSize,
                 createdAt: createdAt,
                 containerFormat: "CAF",
@@ -175,19 +84,20 @@ public nonisolated final class TTSFileGenerator: TTSFileGenerating {
         }
     }
 
-    private func makeUniqueCAFFileName(
-        languageCode: String,
-        createdAt: Date,
-        id: UUID,
-        options: TTSGenerationOptions
-    ) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+    public func startGeneration(request: TTSGenerationRequest) -> any TTSGenerationSessioning {
+        TTSGenerationSession(
+            task: Task {
+                try await generate(request: request)
+            }
+        )
+    }
 
-        let safeLanguageCode = languageCode.replacingOccurrences(of: "/", with: "-")
-        return "\(options.normalizedFileNamePrefix)_\(safeLanguageCode)_\(formatter.string(from: createdAt))_\(id.uuidString).caf"
+    public func availableVoices(languageCode: String) -> [TTSVoiceInfo] {
+        voiceSelector.availableVoices(languageCode: languageCode)
+    }
+
+    public func isLanguageAvailable(_ languageCode: String) -> Bool {
+        voiceSelector.isLanguageAvailable(languageCode)
     }
 
     private func fileSize(at url: URL) throws -> Int64 {

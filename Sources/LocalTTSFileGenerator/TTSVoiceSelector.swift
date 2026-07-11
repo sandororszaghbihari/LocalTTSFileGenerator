@@ -1,7 +1,13 @@
 @preconcurrency import AVFoundation
 import Foundation
 
-public struct TTSVoiceSelector: Sendable {
+public protocol TTSVoiceSelecting: Sendable {
+    func availableVoices(languageCode: String) -> [TTSVoiceInfo]
+    func isLanguageAvailable(_ languageCode: String) -> Bool
+    func selectVoice(languageCode: String) -> AVSpeechSynthesisVoice?
+}
+
+public struct TTSVoiceSelector: TTSVoiceSelecting {
     public init() {}
 
     public func availableVoices(languageCode: String) -> [TTSVoiceInfo] {

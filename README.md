@@ -39,11 +39,13 @@ import LocalTTSFileGenerator
 
 let generator = TTSFileGenerator()
 
-let result = try await generator.generate(
+let request = TTSGenerationRequest(
     text: "Szeretnek Sziciliaban hazat venni.",
     languageCode: "it-IT",
     outputDirectory: outputDirectory
 )
+
+let result = try await generator.generate(request: request)
 
 print(result.fileURL)
 ```
@@ -67,47 +69,53 @@ let options = TTSGenerationOptions(
     volume: 1.0
 )
 
-let result = try await generator.generate(
+let request = TTSGenerationRequest(
     text: "Buongiorno.",
     languageCode: "it-IT",
     outputDirectory: outputDirectory,
     options: options
 )
+
+let result = try await generator.generate(request: request)
 ```
 
 ## Generation Events
 
 ```swift
-let result = try await generator.generate(
+let request = TTSGenerationRequest(
     text: "Buongiorno.",
     languageCode: "it-IT",
     outputDirectory: outputDirectory,
-    options: TTSGenerationOptions()
-) { event in
-    switch event {
-    case .started:
-        print("Started")
-    case .voiceSelected(let voice):
-        print("Voice:", voice.name)
-    case .firstBufferReceived:
-        print("First buffer")
-    case .bufferWritten(let frameLength):
-        print("Wrote frames:", frameLength)
-    case .finished(let result):
-        print("Finished:", result.fileURL)
+    options: TTSGenerationOptions(),
+    eventHandler: { event in
+        switch event {
+        case .started:
+            print("Started")
+        case .voiceSelected(let voice):
+            print("Voice:", voice.name)
+        case .firstBufferReceived:
+            print("First buffer")
+        case .bufferWritten(let frameLength):
+            print("Wrote frames:", frameLength)
+        case .finished(let result):
+            print("Finished:", result.fileURL)
+        }
     }
-}
+)
+
+let result = try await generator.generate(request: request)
 ```
 
 ## Cancellation
 
 ```swift
-let session = generator.startGeneration(
+let request = TTSGenerationRequest(
     text: longText,
     languageCode: "hu-HU",
     outputDirectory: outputDirectory
 )
 
+let session = generator.startGeneration(request: request)
 session.cancel()
 ```
 
@@ -132,20 +140,40 @@ if let metadata = result.metadata {
 You can also read metadata from an existing file:
 
 ```swift
-let metadata = try TTSAudioMetadataReader.metadata(for: result.fileURL)
+let metadataReader = TTSAudioMetadataReader()
+let metadata = try metadataReader.metadata(for: result.fileURL)
 ```
 
 ## Playback
 
 ```swift
 let player = TTSAudioPlayer()
-try player.play(result: result)
+try player.play(request: TTSAudioPlaybackRequest(result: result))
 ```
 
 You can also play any generated file URL directly:
 
 ```swift
-try player.play(url: result.fileURL)
+try player.play(request: TTSAudioPlaybackRequest(fileURL: result.fileURL))
+```
+
+## Protocols
+
+The public API is protocol-oriented:
+
+```swift
+let generator: any TTSFileGenerating = TTSFileGenerator()
+let player: any TTSAudioPlaying = TTSAudioPlayer()
+```
+
+The generator also composes smaller replaceable services:
+
+```swift
+let generator = TTSFileGenerator(
+    voiceSelector: TTSVoiceSelector(),
+    fileNameProvider: TTSCAFFileNameProvider(),
+    metadataReader: TTSAudioMetadataReader()
+)
 ```
 
 ## Output

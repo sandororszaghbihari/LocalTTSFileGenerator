@@ -1,6 +1,11 @@
 import Foundation
 
-public final class TTSGenerationSession: @unchecked Sendable {
+public protocol TTSGenerationSessioning: Sendable {
+    var result: TTSGenerationResult { get async throws }
+    func cancel()
+}
+
+public final class TTSGenerationSession: TTSGenerationSessioning, @unchecked Sendable {
     private let task: Task<TTSGenerationResult, Error>
 
     init(task: Task<TTSGenerationResult, Error>) {
