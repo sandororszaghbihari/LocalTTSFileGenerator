@@ -11,7 +11,7 @@ It uses:
 - Linear PCM audio
 - Swift concurrency
 
-The package does not include UI, playback, file indexing, or persistence logic. It only generates an audio file and returns its location and metadata.
+The package does not include UI, file indexing, or persistence logic. It generates an audio file and can optionally play it back with `AVAudioPlayer`.
 
 ## Requirements
 
@@ -46,6 +46,19 @@ let result = try await generator.generate(
 )
 
 print(result.fileURL)
+```
+
+## Playback
+
+```swift
+let player = TTSAudioPlayer()
+try player.play(result: result)
+```
+
+You can also play any generated file URL directly:
+
+```swift
+try player.play(url: result.fileURL)
 ```
 
 ## Output
