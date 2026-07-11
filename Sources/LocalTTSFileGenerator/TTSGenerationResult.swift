@@ -11,6 +11,7 @@ public struct TTSGenerationResult: Sendable {
     public let selectedVoiceIdentifier: String
     public let selectedVoiceName: String
     public let selectedVoiceQuality: String
+    public let metadata: TTSAudioFileMetadata?
 
     public init(
         fileURL: URL,
@@ -22,7 +23,8 @@ public struct TTSGenerationResult: Sendable {
         audioFormat: String,
         selectedVoiceIdentifier: String,
         selectedVoiceName: String,
-        selectedVoiceQuality: String
+        selectedVoiceQuality: String,
+        metadata: TTSAudioFileMetadata? = nil
     ) {
         self.fileURL = fileURL
         self.fileName = fileName
@@ -34,5 +36,6 @@ public struct TTSGenerationResult: Sendable {
         self.selectedVoiceIdentifier = selectedVoiceIdentifier
         self.selectedVoiceName = selectedVoiceName
         self.selectedVoiceQuality = selectedVoiceQuality
+        self.metadata = metadata
     }
 }

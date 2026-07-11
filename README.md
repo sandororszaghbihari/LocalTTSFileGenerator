@@ -48,6 +48,93 @@ let result = try await generator.generate(
 print(result.fileURL)
 ```
 
+## Voice Availability
+
+```swift
+let voices = generator.availableVoices(languageCode: "it-IT")
+let canGenerateItalian = generator.isLanguageAvailable("it-IT")
+```
+
+The voice selector tries premium, enhanced, then default quality voices for the exact requested language. It does not silently fall back to another language.
+
+## Generation Options
+
+```swift
+let options = TTSGenerationOptions(
+    fileNamePrefix: "lesson_intro",
+    rate: 0.48,
+    pitchMultiplier: 1.0,
+    volume: 1.0
+)
+
+let result = try await generator.generate(
+    text: "Buongiorno.",
+    languageCode: "it-IT",
+    outputDirectory: outputDirectory,
+    options: options
+)
+```
+
+## Generation Events
+
+```swift
+let result = try await generator.generate(
+    text: "Buongiorno.",
+    languageCode: "it-IT",
+    outputDirectory: outputDirectory,
+    options: TTSGenerationOptions()
+) { event in
+    switch event {
+    case .started:
+        print("Started")
+    case .voiceSelected(let voice):
+        print("Voice:", voice.name)
+    case .firstBufferReceived:
+        print("First buffer")
+    case .bufferWritten(let frameLength):
+        print("Wrote frames:", frameLength)
+    case .finished(let result):
+        print("Finished:", result.fileURL)
+    }
+}
+```
+
+## Cancellation
+
+```swift
+let session = generator.startGeneration(
+    text: longText,
+    languageCode: "hu-HU",
+    outputDirectory: outputDirectory
+)
+
+session.cancel()
+```
+
+If you want the result:
+
+```swift
+let result = try await session.result
+```
+
+## Metadata
+
+`TTSGenerationResult` includes optional audio metadata:
+
+```swift
+if let metadata = result.metadata {
+    print(metadata.duration)
+    print(metadata.sampleRate)
+    print(metadata.channelCount)
+}
+```
+
+You can also read metadata from an existing file:
+
+```swift
+let metadata = try TTSAudioMetadataReader.metadata(for: result.fileURL)
+```
+
 ## Playback
 
 ```swift
@@ -79,5 +166,3 @@ The package accepts any BCP-47 language code supported by the installed iOS voic
 - `en-US`
 - `es-ES`
 - `it-IT`
-
-The voice selector tries premium, enhanced, then default quality voices for the exact requested language. It does not silently fall back to another language.

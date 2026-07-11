@@ -4,6 +4,7 @@ import Foundation
 nonisolated final class SpeechFileWriteSession: NSObject {
     private let utterance: AVSpeechUtterance
     private let destinationURL: URL
+    private let eventHandler: (@Sendable (TTSGenerationEvent) -> Void)?
     private let synthesizer = AVSpeechSynthesizer()
     private let lock = NSLock()
 
@@ -11,13 +12,23 @@ nonisolated final class SpeechFileWriteSession: NSObject {
     private var expectedFormat: AVAudioFormat?
     private var continuation: CheckedContinuation<Void, Error>?
     private var didComplete = false
+    private var didReceiveFirstBuffer = false
 
-    init(text: String, voice: AVSpeechSynthesisVoice, destinationURL: URL) {
+    init(
+        text: String,
+        voice: AVSpeechSynthesisVoice,
+        destinationURL: URL,
+        options: TTSGenerationOptions,
+        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)?
+    ) {
         self.utterance = AVSpeechUtterance(string: text)
         self.destinationURL = destinationURL
+        self.eventHandler = eventHandler
         super.init()
         utterance.voice = voice
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.rate = options.normalizedRate
+        utterance.pitchMultiplier = options.normalizedPitchMultiplier
+        utterance.volume = options.normalizedVolume
     }
 
     func start() async throws {
@@ -69,6 +80,11 @@ nonisolated final class SpeechFileWriteSession: NSObject {
         }
 
         do {
+            if !didReceiveFirstBuffer {
+                didReceiveFirstBuffer = true
+                eventHandler?(.firstBufferReceived)
+            }
+
             if audioFile == nil {
                 expectedFormat = pcmBuffer.format
                 audioFile = try AVAudioFile(
@@ -90,6 +106,7 @@ nonisolated final class SpeechFileWriteSession: NSObject {
             }
 
             try audioFile.write(from: pcmBuffer)
+            eventHandler?(.bufferWritten(frameLength: AVAudioFramePosition(pcmBuffer.frameLength)))
         } catch {
             complete(with: .failure(error))
         }

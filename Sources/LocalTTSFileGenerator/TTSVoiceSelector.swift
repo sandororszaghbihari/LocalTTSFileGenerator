@@ -4,6 +4,19 @@ import Foundation
 public struct TTSVoiceSelector: Sendable {
     public init() {}
 
+    public func availableVoices(languageCode: String) -> [TTSVoiceInfo] {
+        AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language == languageCode }
+            .sorted { lhs, rhs in
+                lhs.quality.sortPriority > rhs.quality.sortPriority
+            }
+            .map(TTSVoiceInfo.init)
+    }
+
+    public func isLanguageAvailable(_ languageCode: String) -> Bool {
+        !availableVoices(languageCode: languageCode).isEmpty
+    }
+
     public func selectVoice(languageCode: String) -> AVSpeechSynthesisVoice? {
         let matchingVoices = AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language == languageCode }
@@ -16,5 +29,20 @@ public struct TTSVoiceSelector: Sendable {
         }
 
         return nil
+    }
+}
+
+private extension AVSpeechSynthesisVoiceQuality {
+    var sortPriority: Int {
+        switch self {
+        case .premium:
+            3
+        case .enhanced:
+            2
+        case .default:
+            1
+        @unknown default:
+            0
+        }
     }
 }

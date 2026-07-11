@@ -12,4 +12,20 @@ public protocol TTSFileGenerating: Sendable {
         languageCode: String,
         destinationURL: URL
     ) async throws -> TTSGenerationResult
+
+    func generate(
+        text: String,
+        languageCode: String,
+        outputDirectory: URL,
+        options: TTSGenerationOptions,
+        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)?
+    ) async throws -> TTSGenerationResult
+
+    func generate(
+        text: String,
+        languageCode: String,
+        destinationURL: URL,
+        options: TTSGenerationOptions,
+        eventHandler: (@Sendable (TTSGenerationEvent) -> Void)?
+    ) async throws -> TTSGenerationResult
 }
